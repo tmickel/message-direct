@@ -1,0 +1,158 @@
+<!doctype html>
+<html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+        <title>Message Direct</title>
+        <script type="text/javascript">
+            async function onSubmit() {
+                const key = await generateKey();
+                const iv = generateIV();
+                const encrypted = await encryptMessage(iv, key, getMessageEncoding());
+                const exportedKey = await window.crypto.subtle.exportKey("raw", key);
+                
+                // for database:
+                const encodedData = encodeURIComponent(bytesToBase64(new Uint8Array(encrypted)));
+                const encodedIv = encodeURIComponent(bytesToBase64(iv));
+
+                // for url:
+                const encodedKey = bytesToBase64(new Uint8Array(exportedKey));
+
+                post(encodedIv, encodedData, encodedKey);
+            }
+
+            function getMessageEncoding() {
+                const message = window.editor.getValue();
+                let enc = new TextEncoder();
+                return enc.encode(message);
+            }
+
+            function encryptMessage(iv, key, message) {
+                return window.crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv },
+                    key,
+                    message
+                );
+            }
+
+            function bytesToBase64(bytes) {
+                let binary = '';
+                for (var i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return window.btoa(binary);
+            }
+
+            function generateIV() {
+                return window.crypto.getRandomValues(new Uint8Array(12));
+            }
+
+            async function generateKey() {
+                return await window.crypto.subtle.generateKey( { name: "AES-GCM", length: 128 }, true, ["encrypt"] );
+            }
+
+            function post(iv, data, doNotSend_Key) {
+                const expiration = document.getElementById('expiration').value;
+                const countLimit = document.getElementById('countLimit').value;
+                const http = new XMLHttpRequest();
+                var params = `data=${data}&iv=${iv}&expiration=${expiration}&countLimit=${countLimit}`;
+                http.open('POST', "/", true);
+                http.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+
+                http.onreadystatechange = function() {
+                    if (http.readyState == 4 && http.status == 200) {
+                        const newId = http.responseText;
+                        document.getElementById("url").textContent = (
+                            window.location.protocol + "//" + window.location.host + "/" + newId + '#' + doNotSend_Key
+                        );
+                    }
+                }
+                http.send(params);
+            }
+        </script>
+        <style type="text/css">
+        button {
+            background: #273448;
+            color: #fff;
+            border: none;
+            padding: 10px 50px;
+            font-size: 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        body {
+            background: #273448;
+            margin: 0;
+        }
+        #container {
+            width: 90%;
+            margin: auto;
+            margin-top: 20px;
+            background: #fff;
+            border-radius: 5px;
+            padding: 10px;
+        }
+        body, input, button {
+            font-family: Menlo, Monaco, "Courier New", monospace;
+            font-size: 13px;
+        }
+        #html {
+            flex: 1;
+        }
+        #preview {
+            flex: 1;
+            border: 1px solid #000;
+            border-radius: 5px;
+        }
+        @media only screen and (max-width: 600px) {
+                #preview {
+                    display: none;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            Enter a full HTML page to be sent secretly:<br />
+            <div style="display:flex">
+            <pre id="html" name="html" style="width: 100%; height: 400px;"></pre>
+            <iframe id="preview"></iframe>
+            <script>
+                document.getElementById('preview').contentWindow.document.open("text/html");
+                document.getElementById('preview').contentWindow.document.write("Your page will be previewed here.");
+                document.getElementById('preview').contentWindow.document.close();
+            </script>
+            </div>
+
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.min.js" integrity="sha512-GoORoNnxst42zE3rYPj4bNBm0Q6ZRXKNH2D9nEmNvVF/z24ywVnijAWVi/09iBiVDQVf3UlZHpzhAJIdd9BXqw==" crossorigin="anonymous"></script>
+            <script>
+                ace.config.set('basePath', 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/')
+                window.editor = ace.edit("html");
+                window.editor.setTheme("ace/theme/chrome");
+                window.editor.session.setMode("ace/mode/html");
+                window.editor.session.on('change', () => {
+                    const content = window.editor.getValue();
+                    document.getElementById('preview').contentWindow.document.open("text/html");
+                    document.getElementById('preview').contentWindow.document.write(content);
+                    document.getElementById('preview').contentWindow.document.close();
+                });
+            </script>
+
+            <br />
+
+            <label for="expiration">Expires </label>
+            <input type="number" id="expiration" name="expiration" /> minutes from now (empty: never. 1440 = 24 hours)
+            <br /><br />
+            <label for="countLimit">Delete after viewed </label>
+            <input type="number" id="countLimit" name="countLimit" /> time(s) (empty: infinite)
+            <input id="iv" type="hidden" name="iv" />
+            <input id="data" type="hidden" name="data" />
+            <br />
+
+            <button onClick="onSubmit()">Create</button>
+
+            <br />
+            <div id="url"></div>
+        </div>
+
+    </body>
+</html>
