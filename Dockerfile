@@ -1,4 +1,3 @@
 FROM debian:buster-slim
-
-COPY out/* .
+COPY out .
 CMD ["./app"]
