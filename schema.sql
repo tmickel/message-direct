@@ -1,0 +1,1 @@
+create table pages(id varchar, data varchar, iv varchar, download_count_remaining integer, expiration_time timestamp);
